@@ -38,11 +38,6 @@ import io.openmessaging.storage.dledger.protocol.RequestOrResponse;
 import io.openmessaging.storage.dledger.protocol.VoteRequest;
 import io.openmessaging.storage.dledger.protocol.VoteResponse;
 import io.openmessaging.storage.dledger.utils.DLedgerUtils;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
 import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
@@ -52,6 +47,12 @@ import org.apache.rocketmq.remoting.protocol.RemotingCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * A netty implementation of DLedgerRpcService. It should be bi-directional, which means it implements both
  * DLedgerProtocol and DLedgerProtocolHandler.
@@ -60,8 +61,9 @@ import org.slf4j.LoggerFactory;
 public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     private static Logger logger = LoggerFactory.getLogger(DLedgerRpcNettyService.class);
-
+    //服务器
     private NettyRemotingServer remotingServer;
+    //客户端
     private NettyRemotingClient remotingClient;
 
     private MemberState memberState;
@@ -103,14 +105,14 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws Exception {
                 return DLedgerRpcNettyService.this.processRequest(ctx, request);
             }
-
-            @Override public boolean rejectRequest() {
+            @Override
+            public boolean rejectRequest() {
                 return false;
             }
         };
         //start the remoting server
         NettyServerConfig nettyServerConfig = new NettyServerConfig();
-        nettyServerConfig.setListenPort(Integer.valueOf(memberState.getSelfAddr().split(":")[1]));
+        nettyServerConfig.setListenPort(Integer.parseInt(memberState.getSelfAddr().split(":")[1]));
         this.remotingServer = new NettyRemotingServer(nettyServerConfig, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.METADATA.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.APPEND.getCode(), protocolProcessor, null);
@@ -131,7 +133,8 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return memberState.getPeerAddr(request.getRemoteId());
     }
 
-    @Override public CompletableFuture<HeartBeatResponse> heartBeat(HeartBeatRequest request) throws Exception {
+    @Override
+    public CompletableFuture<HeartBeatResponse> heartBeat(HeartBeatRequest request) throws Exception {
         CompletableFuture<HeartBeatResponse> future = new CompletableFuture<>();
         heartBeatInvokeExecutor.execute(() -> {
             try {
@@ -141,9 +144,11 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
                     RemotingCommand responseCommand = responseFuture.getResponseCommand();
                     if (responseCommand != null) {
                         HeartBeatResponse response = JSON.parseObject(responseCommand.getBody(), HeartBeatResponse.class);
+                        //回调
                         future.complete(response);
                     } else {
                         logger.error("HeartBeat request time out, {}", request.baseInfo());
+                        //回调.
                         future.complete(new HeartBeatResponse().code(DLedgerResponseCode.NETWORK_ERROR.getCode()));
                     }
                 });
@@ -155,14 +160,20 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return future;
     }
 
-    @Override public CompletableFuture<VoteResponse> vote(VoteRequest request) throws Exception {
+    @Override
+    public CompletableFuture<VoteResponse> vote(VoteRequest request) {
         CompletableFuture<VoteResponse> future = new CompletableFuture<>();
         voteInvokeExecutor.execute(() -> {
             try {
+                //
                 RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.VOTE.getCode(), null);
+                //
                 wrapperRequest.setBody(JSON.toJSONBytes(request));
+                //
                 remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
+                    //
                     RemotingCommand responseCommand = responseFuture.getResponseCommand();
+                    //
                     if (responseCommand != null) {
                         VoteResponse response = JSON.parseObject(responseCommand.getBody(), VoteResponse.class);
                         future.complete(response);
@@ -179,13 +190,15 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return future;
     }
 
-    @Override public CompletableFuture<GetEntriesResponse> get(GetEntriesRequest request) throws Exception {
+    @Override
+    public CompletableFuture<GetEntriesResponse> get(GetEntriesRequest request) throws Exception {
         GetEntriesResponse entriesResponse = new GetEntriesResponse();
         entriesResponse.setCode(DLedgerResponseCode.UNSUPPORTED.getCode());
         return CompletableFuture.completedFuture(entriesResponse);
     }
 
-    @Override public CompletableFuture<AppendEntryResponse> append(AppendEntryRequest request) throws Exception {
+    @Override
+    public CompletableFuture<AppendEntryResponse> append(AppendEntryRequest request) throws Exception {
         CompletableFuture<AppendEntryResponse> future = new CompletableFuture<>();
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.APPEND.getCode(), null);
@@ -212,13 +225,15 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return future;
     }
 
-    @Override public CompletableFuture<MetadataResponse> metadata(MetadataRequest request) throws Exception {
+    @Override
+    public CompletableFuture<MetadataResponse> metadata(MetadataRequest request) throws Exception {
         MetadataResponse metadataResponse = new MetadataResponse();
         metadataResponse.setCode(DLedgerResponseCode.UNSUPPORTED.getCode());
         return CompletableFuture.completedFuture(metadataResponse);
     }
 
-    @Override public CompletableFuture<PullEntriesResponse> pull(PullEntriesRequest request) throws Exception {
+    @Override
+    public CompletableFuture<PullEntriesResponse> pull(PullEntriesRequest request) throws Exception {
         RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.PULL.getCode(), null);
         wrapperRequest.setBody(JSON.toJSONBytes(request));
         RemotingCommand wrapperResponse = remotingClient.invokeSync(getPeerAddr(request), wrapperRequest, 3000);
@@ -226,7 +241,8 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return CompletableFuture.completedFuture(response);
     }
 
-    @Override public CompletableFuture<PushEntryResponse> push(PushEntryRequest request) throws Exception {
+    @Override
+    public CompletableFuture<PushEntryResponse> push(PushEntryRequest request) throws Exception {
         CompletableFuture<PushEntryResponse> future = new CompletableFuture<>();
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.PUSH.getCode(), null);
@@ -256,7 +272,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     @Override
     public CompletableFuture<LeadershipTransferResponse> leadershipTransfer(
-        LeadershipTransferRequest request) throws Exception {
+            LeadershipTransferRequest request) throws Exception {
         CompletableFuture<LeadershipTransferResponse> future = new CompletableFuture<>();
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.LEADERSHIP_TRANSFER.getCode(), null);
@@ -285,7 +301,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     private void writeResponse(RequestOrResponse storeResp, Throwable t, RemotingCommand request,
-        ChannelHandlerContext ctx) {
+                               ChannelHandlerContext ctx) {
         RemotingCommand response = null;
         try {
             if (t != null) {
@@ -381,7 +397,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
                 future.whenCompleteAsync((x, y) -> {
                     writeResponse(x, y, request, ctx);
                     logger.info("LEADERSHIP_TRANSFER FINISHED. Request={}, response={}, cost={}ms",
-                        request, x, DLedgerUtils.elapsed(start));
+                            request, x, DLedgerUtils.elapsed(start));
                 }, futureExecutor);
                 break;
             }
@@ -394,7 +410,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     @Override
     public CompletableFuture<LeadershipTransferResponse> handleLeadershipTransfer(
-        LeadershipTransferRequest leadershipTransferRequest) throws Exception {
+            LeadershipTransferRequest leadershipTransferRequest) throws Exception {
         return dLedgerServer.handleLeadershipTransfer(leadershipTransferRequest);
     }
 
@@ -414,11 +430,13 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return dLedgerServer.handleAppend(request);
     }
 
-    @Override public CompletableFuture<GetEntriesResponse> handleGet(GetEntriesRequest request) throws Exception {
+    @Override
+    public CompletableFuture<GetEntriesResponse> handleGet(GetEntriesRequest request) throws Exception {
         return dLedgerServer.handleGet(request);
     }
 
-    @Override public CompletableFuture<MetadataResponse> handleMetadata(MetadataRequest request) throws Exception {
+    @Override
+    public CompletableFuture<MetadataResponse> handleMetadata(MetadataRequest request) throws Exception {
         return dLedgerServer.handleMetadata(request);
     }
 
@@ -427,7 +445,8 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         return dLedgerServer.handlePull(request);
     }
 
-    @Override public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
+    @Override
+    public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
         return dLedgerServer.handlePush(request);
     }
 

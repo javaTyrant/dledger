@@ -19,41 +19,61 @@ package io.openmessaging.storage.dledger;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.utils.IOUtils;
 import io.openmessaging.storage.dledger.utils.PreConditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static io.openmessaging.storage.dledger.MemberState.Role.CANDIDATE;
 import static io.openmessaging.storage.dledger.MemberState.Role.FOLLOWER;
 import static io.openmessaging.storage.dledger.MemberState.Role.LEADER;
 
+//节点状态机，即raft协议中的follower、candidate、leader三种状态的状态机实现。
 public class MemberState {
-
+    //
     public static final String TERM_PERSIST_FILE = "currterm";
+    //
     public static final String TERM_PERSIST_KEY_TERM = "currTerm";
+    //
     public static final String TERM_PERSIST_KEY_VOTE_FOR = "voteLeader";
+    //
     public static Logger logger = LoggerFactory.getLogger(MemberState.class);
+    //
     public final DLedgerConfig dLedgerConfig;
+    //
     private final ReentrantLock defaultLock = new ReentrantLock();
+    //
     private final String group;
+    //
     private final String selfId;
+    //
     private final String peers;
+    //
     private volatile Role role = CANDIDATE;
+    //
     private volatile String leaderId;
+    //
     private volatile long currTerm = 0;
+    //
     private volatile String currVoteFor;
+    //
     private volatile long ledgerEndIndex = -1;
+    //
     private volatile long ledgerEndTerm = -1;
+    //
     private long knownMaxTermInGroup = -1;
+    //
     private Map<String, String> peerMap = new HashMap<>();
+    //
     private Map<String, Boolean> peersLiveTable = new ConcurrentHashMap<>();
-
+    //
     private volatile String transferee;
+    //
     private volatile long termToTakeLeadership = -1;
 
     public MemberState(DLedgerConfig config) {
@@ -77,7 +97,7 @@ public class MemberState {
                 return;
             }
             if (properties.containsKey(TERM_PERSIST_KEY_TERM)) {
-                currTerm = Long.valueOf(String.valueOf(properties.get(TERM_PERSIST_KEY_TERM)));
+                currTerm = Long.parseLong(String.valueOf(properties.get(TERM_PERSIST_KEY_TERM)));
             }
             if (properties.containsKey(TERM_PERSIST_KEY_VOTE_FOR)) {
                 currVoteFor = String.valueOf(properties.get(TERM_PERSIST_KEY_VOTE_FOR));
