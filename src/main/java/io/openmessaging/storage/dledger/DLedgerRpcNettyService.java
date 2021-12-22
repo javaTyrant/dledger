@@ -105,6 +105,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws Exception {
                 return DLedgerRpcNettyService.this.processRequest(ctx, request);
             }
+
             @Override
             public boolean rejectRequest() {
                 return false;
@@ -134,13 +135,20 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     @Override
-    public CompletableFuture<HeartBeatResponse> heartBeat(HeartBeatRequest request) throws Exception {
+    public CompletableFuture<HeartBeatResponse> heartBeat(HeartBeatRequest request) {
         CompletableFuture<HeartBeatResponse> future = new CompletableFuture<>();
         heartBeatInvokeExecutor.execute(() -> {
             try {
+                //
                 RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.HEART_BEAT.getCode(), null);
+                //
                 wrapperRequest.setBody(JSON.toJSONBytes(request));
+                //invoke的回调.
                 remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
+                    //SUCCESS 心跳包成功响应。
+                    //EXPIRED_TERM 主节点的投票 term 小于从节点的投票轮次。
+                    //INCONSISTENT_LEADER 从节点已经有了新的主节点。
+                    //TERM_NOT_READY 从节点未准备好。
                     RemotingCommand responseCommand = responseFuture.getResponseCommand();
                     if (responseCommand != null) {
                         HeartBeatResponse response = JSON.parseObject(responseCommand.getBody(), HeartBeatResponse.class);
