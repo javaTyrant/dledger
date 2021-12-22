@@ -30,7 +30,7 @@ public enum DLedgerRequestCode {
     PUSH(51004, ""),
     LEADERSHIP_TRANSFER(51005, "");
 
-    private static Map<Integer, DLedgerRequestCode> codeMap = new HashMap<>();
+    private static final Map<Integer, DLedgerRequestCode> codeMap = new HashMap<>();
 
     static {
         for (DLedgerRequestCode requestCode : DLedgerRequestCode.values()) {

@@ -28,15 +28,22 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+//选举算法如何做单元测试的.
 public class LeaderElectorTest extends ServerTestHarness {
 
     @Test
     public void testSingleServer() throws Exception {
+        //
         String group = UUID.randomUUID().toString();
+        //
         DLedgerServer dLedgerServer = launchServer(group, String.format("n0-localhost:%d", nextPort()), "n0");
+        //
         MemberState memberState = dLedgerServer.getMemberState();
+        //
         Thread.sleep(1000);
+        //
         Assert.assertTrue(memberState.isLeader());
+        //
         for (int i = 0; i < 10; i++) {
             AppendEntryRequest appendEntryRequest = new AppendEntryRequest();
             appendEntryRequest.setGroup(group);
@@ -114,6 +121,7 @@ public class LeaderElectorTest extends ServerTestHarness {
         Thread.sleep(1000);
         AtomicInteger leaderNum = new AtomicInteger(0);
         AtomicInteger followerNum = new AtomicInteger(0);
+        //返回leaderServer.
         DLedgerServer leaderServer = parseServers(servers, leaderNum, followerNum);
         Assert.assertEquals(1, leaderNum.get());
         Assert.assertEquals(2, followerNum.get());
@@ -280,8 +288,8 @@ public class LeaderElectorTest extends ServerTestHarness {
         followerNum.set(0);
 
         start = System.currentTimeMillis();
-        while ( ((leaderServer = parseServers(leftServers, leaderNum, followerNum)) == null  || leaderServer.getMemberState().currTerm() == oldTerm)
-            && DLedgerUtils.elapsed(start) < 3000) {
+        while (((leaderServer = parseServers(leftServers, leaderNum, followerNum)) == null || leaderServer.getMemberState().currTerm() == oldTerm)
+                && DLedgerUtils.elapsed(start) < 3000) {
             Thread.sleep(100);
         }
         Thread.sleep(1500);

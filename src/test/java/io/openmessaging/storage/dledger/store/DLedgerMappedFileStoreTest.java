@@ -23,26 +23,29 @@ import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.store.file.DLedgerMmapFileStore;
 import io.openmessaging.storage.dledger.store.file.MmapFile;
 import io.openmessaging.storage.dledger.util.FileTestUtil;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static io.openmessaging.storage.dledger.store.file.MmapFileList.MIN_BLANK_LEN;
 
 public class DLedgerMappedFileStoreTest extends ServerTestHarness {
 
     private synchronized DLedgerMmapFileStore createFileStore(String group, String peers, String selfId,
-        String leaderId) {
+                                                              String leaderId) {
         return createFileStore(group, peers, selfId, leaderId, 10 * 1024 * 1024, DLedgerMmapFileStore.INDEX_UNIT_SIZE * 1024 * 1024, 0);
     }
 
+    //创建FileStore.
     private synchronized DLedgerMmapFileStore createFileStore(String group, String peers, String selfId, String leaderId,
-        int dataFileSize, int indexFileSize, int deleteFileNums) {
+                                                              int dataFileSize, int indexFileSize, int deleteFileNums) {
+        //配置文件.
         DLedgerConfig config = new DLedgerConfig();
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
         config.group(group).selfId(selfId).peers(peers);
@@ -82,15 +85,16 @@ public class DLedgerMappedFileStoreTest extends ServerTestHarness {
         bases.add(config.getIndexStorePath());
         bases.add(config.getDefaultPath());
         DLedgerMmapFileStore fileStore = new DLedgerMmapFileStore(config, memberState);
+        //做了哪些事.
         fileStore.startup();
         return fileStore;
     }
 
     @Test
-    public void testCommittedIndex() throws Exception {
+    public void testCommittedIndex() {
         String group = UUID.randomUUID().toString();
         String peers = String.format("n0-localhost:%d", nextPort());
-        DLedgerMmapFileStore fileStore = createFileStore(group,  peers, "n0", "n0");
+        DLedgerMmapFileStore fileStore = createFileStore(group, peers, "n0", "n0");
         MemberState memberState = fileStore.getMemberState();
         for (int i = 0; i < 100; i++) {
             DLedgerEntry entry = new DLedgerEntry();
@@ -235,9 +239,13 @@ public class DLedgerMappedFileStoreTest extends ServerTestHarness {
 
     @Test
     public void testTruncate() {
+        //
         String group = UUID.randomUUID().toString();
+        //
         String peers = String.format("n0-localhost:%d", nextPort());
+        //
         DLedgerMmapFileStore fileStore = createFileStore(group, peers, "n0", "n0", 8 * 1024 + MIN_BLANK_LEN, 8 * DLedgerMmapFileStore.INDEX_UNIT_SIZE, 0);
+        //拼接10个日志.
         for (int i = 0; i < 10; i++) {
             DLedgerEntry entry = new DLedgerEntry();
             entry.setBody(new byte[1024]);

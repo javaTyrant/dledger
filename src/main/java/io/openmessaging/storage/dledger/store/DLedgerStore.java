@@ -25,8 +25,22 @@ public abstract class DLedgerStore {
         return null;
     }
 
+    /**
+     * Leader追加日志
+     *
+     * @param entry entry
+     * @return Entry
+     */
     public abstract DLedgerEntry appendAsLeader(DLedgerEntry entry);
 
+    /**
+     * Follower追加日志.
+     *
+     * @param entry      entry
+     * @param leaderTerm term
+     * @param leaderId   id
+     * @return entry
+     */
     public abstract DLedgerEntry appendAsFollower(DLedgerEntry entry, long leaderTerm, String leaderId);
 
     public abstract DLedgerEntry get(Long index);

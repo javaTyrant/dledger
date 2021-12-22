@@ -17,17 +17,17 @@
 package io.openmessaging.storage.dledger.protocol;
 
 public class RequestOrResponse {
-    //
+    //该集群所属组名。
     protected String group;
-    //
+    //请求目的节点ID。
     protected String remoteId;
-    //
+    //节点ID。
     protected String localId;
-    //
+    //请求响应字段，表示返回响应码。
     protected int code = DLedgerResponseCode.SUCCESS.getCode();
-    //
+    //集群中的Leader Id。
     protected String leaderId = null;
-    //
+    //集群当前的选举轮次。
     protected long term = -1;
 
     public String getGroup() {

@@ -23,18 +23,19 @@ import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.entry.DLedgerEntryCoder;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.store.DLedgerStore;
+import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import io.openmessaging.storage.dledger.utils.IOUtils;
 import io.openmessaging.storage.dledger.utils.Pair;
 import io.openmessaging.storage.dledger.utils.PreConditions;
-import io.openmessaging.storage.dledger.utils.DLedgerUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class DLedgerMmapFileStore extends DLedgerStore {
 
@@ -45,27 +46,34 @@ public class DLedgerMmapFileStore extends DLedgerStore {
     public static final int CURRENT_MAGIC = MAGIC_1;
     public static final int INDEX_UNIT_SIZE = 32;
 
-    private static Logger logger = LoggerFactory.getLogger(DLedgerMmapFileStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(DLedgerMmapFileStore.class);
     public List<AppendHook> appendHooks = new ArrayList<>();
     private long ledgerBeginIndex = -1;
     private long ledgerEndIndex = -1;
     private long committedIndex = -1;
     private long committedPos = -1;
     private long ledgerEndTerm;
-    private DLedgerConfig dLedgerConfig;
-    private MemberState memberState;
-    private MmapFileList dataFileList;
-    private MmapFileList indexFileList;
-    private ThreadLocal<ByteBuffer> localEntryBuffer;
-    private ThreadLocal<ByteBuffer> localIndexBuffer;
-    private FlushDataService flushDataService;
-    private CleanSpaceService cleanSpaceService;
+    private final DLedgerConfig dLedgerConfig;
+    private final MemberState memberState;
+    private final MmapFileList dataFileList;
+    //
+    private final MmapFileList indexFileList;
+    //
+    private final ThreadLocal<ByteBuffer> localEntryBuffer;
+    //
+    private final ThreadLocal<ByteBuffer> localIndexBuffer;
+    //
+    private final FlushDataService flushDataService;
+    //
+    private final CleanSpaceService cleanSpaceService;
+    //
     private boolean isDiskFull = false;
 
     private long lastCheckPointTimeMs = System.currentTimeMillis();
-
-    private AtomicBoolean hasLoaded = new AtomicBoolean(false);
-    private AtomicBoolean hasRecovered = new AtomicBoolean(false);
+    //
+    private final AtomicBoolean hasLoaded = new AtomicBoolean(false);
+    //
+    private final AtomicBoolean hasRecovered = new AtomicBoolean(false);
 
     public DLedgerMmapFileStore(DLedgerConfig dLedgerConfig, MemberState memberState) {
         this.dLedgerConfig = dLedgerConfig;
@@ -79,9 +87,13 @@ public class DLedgerMmapFileStore extends DLedgerStore {
     }
 
     public void startup() {
+        //load啥?
         load();
+        //recover啥?
         recover();
+        //
         flushDataService.start();
+        //
         cleanSpaceService.start();
     }
 
@@ -107,33 +119,57 @@ public class DLedgerMmapFileStore extends DLedgerStore {
     }
 
     public void load() {
+        //如果已经加载过了,直接返回.
         if (!hasLoaded.compareAndSet(false, true)) {
             return;
         }
+        //dataFile indexFile.
         if (!this.dataFileList.load() || !this.indexFileList.load()) {
             logger.error("Load file failed, this usually indicates fatal error, you should check it manually");
             System.exit(-1);
         }
     }
 
+    //什么时候需要recover数据?
+
+    /**
+     * 恢复的数据
+     * <p>
+     * MappedFile
+     * - FlushedPosition 刷盘位置
+     * - CommittedPosition 提交位置
+     * - WrotePosition 内存映射位置（写的位置）
+     * MappedFileQueue
+     * - FlushedWhere 刷盘位置
+     * - CommittedWhere 提交位置
+     * ConsumeQueue
+     * - minPhyOffset
+     */
     public void recover() {
+        //如果已经recover了,直接返回.
         if (!hasRecovered.compareAndSet(false, true)) {
             return;
         }
+        //
         PreConditions.check(dataFileList.checkSelf(), DLedgerResponseCode.DISK_ERROR, "check data file order failed before recovery");
         PreConditions.check(indexFileList.checkSelf(), DLedgerResponseCode.DISK_ERROR, "check index file order failed before recovery");
+        //获取映射文件.
         final List<MmapFile> mappedFiles = this.dataFileList.getMappedFiles();
+        //如果为空.
         if (mappedFiles.isEmpty()) {
             this.indexFileList.updateWherePosition(0);
             this.indexFileList.truncateOffset(0);
             return;
         }
+        //获取最后一个
         MmapFile lastMappedFile = dataFileList.getLastMappedFile();
+        //为什么要减3? 从倒数第三个文件开始恢复，这样可以对虚拟内存做一个预热
+        //只有最后一个文件需要做恢复，另两个文件只是进行一个预热
         int index = mappedFiles.size() - 3;
         if (index < 0) {
             index = 0;
         }
-
+        //
         long firstEntryIndex = -1;
         for (int i = index; i >= 0; i--) {
             index = i;
@@ -152,12 +188,13 @@ public class DLedgerMmapFileStore extends DLedgerStore {
                 int bodySize = byteBuffer.getInt();
                 PreConditions.check(magic != MmapFileList.BLANK_MAGIC_CODE && magic >= MAGIC_1 && MAGIC_1 <= CURRENT_MAGIC, DLedgerResponseCode.DISK_ERROR, "unknown magic=%d", magic);
                 PreConditions.check(size > DLedgerEntry.HEADER_SIZE, DLedgerResponseCode.DISK_ERROR, "Size %d should > %d", size, DLedgerEntry.HEADER_SIZE);
-
+                //
                 PreConditions.check(pos == startPos, DLedgerResponseCode.DISK_ERROR, "pos %d != %d", pos, startPos);
                 PreConditions.check(bodySize + DLedgerEntry.BODY_OFFSET == size, DLedgerResponseCode.DISK_ERROR, "size %d != %d + %d", size, bodySize, DLedgerEntry.BODY_OFFSET);
-
+                //
                 SelectMmapBufferResult indexSbr = indexFileList.getData(entryIndex * INDEX_UNIT_SIZE);
                 PreConditions.check(indexSbr != null, DLedgerResponseCode.DISK_ERROR, "index=%d pos=%d", entryIndex, entryIndex * INDEX_UNIT_SIZE);
+                //
                 indexSbr.release();
                 ByteBuffer indexByteBuffer = indexSbr.getByteBuffer();
                 int magicFromIndex = indexByteBuffer.getInt();
@@ -179,6 +216,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
         MmapFile mappedFile = mappedFiles.get(index);
         ByteBuffer byteBuffer = mappedFile.sliceByteBuffer();
+        //从哪个位置开始恢复数据.
         logger.info("Begin to recover data from entryIndex={} fileIndex={} fileSize={} fileName={} ", firstEntryIndex, index, mappedFiles.size(), mappedFile.getFileName());
         long lastEntryIndex = -1;
         long lastEntryTerm = -1;
@@ -266,7 +304,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             }
         }
         logger.info("Recover data to the end entryIndex={} processOffset={} lastFileOffset={} cha={}",
-            lastEntryIndex, processOffset, lastMappedFile.getFileFromOffset(), processOffset - lastMappedFile.getFileFromOffset());
+                lastEntryIndex, processOffset, lastMappedFile.getFileFromOffset(), processOffset - lastMappedFile.getFileFromOffset());
         if (lastMappedFile.getFileFromOffset() - processOffset > lastMappedFile.getFileSize()) {
             logger.error("[MONITOR]The processOffset is too small, you should check it manually before truncating the data from {}", processOffset);
             System.exit(-1);
@@ -299,8 +337,6 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         }
         logger.info("Recover to get committed index={} from checkpoint", committedIndexStr);
         updateCommittedIndex(memberState.currTerm(), Long.valueOf(committedIndexStr));
-
-        return;
     }
 
     private void reviseLedgerBeginIndex() {
@@ -322,20 +358,30 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
     @Override
     public DLedgerEntry appendAsLeader(DLedgerEntry entry) {
+        //必须是Leader.
         PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER);
+        //磁盘不能满.
         PreConditions.check(!isDiskFull, DLedgerResponseCode.DISK_FULL);
+        //
         ByteBuffer dataBuffer = localEntryBuffer.get();
         ByteBuffer indexBuffer = localIndexBuffer.get();
+        //
         DLedgerEntryCoder.encode(entry, dataBuffer);
+        //
         int entrySize = dataBuffer.remaining();
+        //
         synchronized (memberState) {
+            //再检查一次
             PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
+            //
             PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
+            //
             long nextIndex = ledgerEndIndex + 1;
             entry.setIndex(nextIndex);
             entry.setTerm(memberState.currTerm());
             entry.setMagic(CURRENT_MAGIC);
             DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
+            //
             long prePos = dataFileList.preAppend(dataBuffer.remaining());
             entry.setPos(prePos);
             PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
@@ -343,10 +389,12 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             for (AppendHook writeHook : appendHooks) {
                 writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
             }
+            //
             long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
             PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
             PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
             DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
+            //
             long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
             PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
             if (logger.isDebugEnabled()) {
@@ -429,7 +477,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
     /**
      * calculate wherePosition after truncate
      *
-     * @param mappedFileList this.dataFileList or this.indexFileList
+     * @param mappedFileList       this.dataFileList or this.indexFileList
      * @param continuedBeginOffset new begining of offset
      */
     private long calculateWherePosition(final MmapFileList mappedFileList, long continuedBeginOffset) {
@@ -510,7 +558,8 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         return ledgerEndIndex;
     }
 
-    @Override public long getLedgerBeginIndex() {
+    @Override
+    public long getLedgerBeginIndex() {
         return ledgerBeginIndex;
     }
 
@@ -550,6 +599,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             SelectMmapBufferResult.release(indexSbr);
         }
     }
+
     public void indexCheck(Long index) {
         PreConditions.check(index >= 0, DLedgerResponseCode.INDEX_OUT_OF_RANGE, "%d should gt 0", index);
         PreConditions.check(index >= ledgerBeginIndex, DLedgerResponseCode.INDEX_LESS_THAN_LOCAL_BEGIN, "%d should be gt %d, ledgerBeginIndex may be revised", index, ledgerBeginIndex);
@@ -563,13 +613,13 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
     public void updateCommittedIndex(long term, long newCommittedIndex) {
         if (newCommittedIndex == -1
-            || ledgerEndIndex == -1
-            || term < memberState.currTerm()
-            || newCommittedIndex == this.committedIndex) {
+                || ledgerEndIndex == -1
+                || term < memberState.currTerm()
+                || newCommittedIndex == this.committedIndex) {
             return;
         }
         if (newCommittedIndex < this.committedIndex
-            || newCommittedIndex < this.ledgerBeginIndex) {
+                || newCommittedIndex < this.ledgerBeginIndex) {
             logger.warn("[MONITOR]Skip update committed index for new={} < old={} or new={} < beginIndex={}", newCommittedIndex, this.committedIndex, newCommittedIndex, this.ledgerBeginIndex);
             return;
         }
@@ -627,7 +677,8 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             super(name, logger);
         }
 
-        @Override public void doWork() {
+        @Override
+        public void doWork() {
             try {
                 long start = System.currentTimeMillis();
                 DLedgerMmapFileStore.this.dataFileList.flush(0);
@@ -658,15 +709,16 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             super(name, logger);
         }
 
-        @Override public void doWork() {
+        @Override
+        public void doWork() {
             try {
                 storeBaseRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getStoreBaseDir());
                 dataRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getDataStorePath());
                 long hourOfMs = 3600L * 1000L;
-                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() *  hourOfMs;
+                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() * hourOfMs;
                 if (fileReservedTimeMs < hourOfMs) {
                     logger.warn("The fileReservedTimeMs={} is smaller than hourOfMs={}", fileReservedTimeMs, hourOfMs);
-                    fileReservedTimeMs =  hourOfMs;
+                    fileReservedTimeMs = hourOfMs;
                 }
                 //If the disk is full, should prevent more data to get in
                 DLedgerMmapFileStore.this.isDiskFull = isNeedForbiddenWrite();
@@ -678,7 +730,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
                     int count = getDataFileList().deleteExpiredFileByTime(fileReservedTimeMs, 100, 120 * 1000, forceClean && enableForceClean);
                     if (count > 0 || (forceClean && enableForceClean) || isDiskFull) {
                         logger.info("Clean space count={} timeUp={} checkExpired={} forceClean={} enableForceClean={} diskFull={} storeBaseRatio={} dataRatio={}",
-                            count, timeUp, checkExpired, forceClean, enableForceClean, isDiskFull, storeBaseRatio, dataRatio);
+                                count, timeUp, checkExpired, forceClean, enableForceClean, isDiskFull, storeBaseRatio, dataRatio);
                     }
                     if (count > 0) {
                         DLedgerMmapFileStore.this.reviseLedgerBeginIndex();
@@ -702,7 +754,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
         private boolean isNeedCheckExpired() {
             if (storeBaseRatio > dLedgerConfig.getDiskSpaceRatioToCheckExpired()
-                || dataRatio > dLedgerConfig.getDiskSpaceRatioToCheckExpired()) {
+                    || dataRatio > dLedgerConfig.getDiskSpaceRatioToCheckExpired()) {
                 return true;
             }
             return false;
@@ -710,7 +762,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
         private boolean isNeedForceClean() {
             if (storeBaseRatio > dLedgerConfig.getDiskSpaceRatioToForceClean()
-                || dataRatio > dLedgerConfig.getDiskSpaceRatioToForceClean()) {
+                    || dataRatio > dLedgerConfig.getDiskSpaceRatioToForceClean()) {
                 return true;
             }
             return false;
@@ -718,7 +770,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 
         private boolean isNeedForbiddenWrite() {
             if (storeBaseRatio > dLedgerConfig.getDiskFullRatio()
-                || dataRatio > dLedgerConfig.getDiskFullRatio()) {
+                    || dataRatio > dLedgerConfig.getDiskFullRatio()) {
                 return true;
             }
             return false;

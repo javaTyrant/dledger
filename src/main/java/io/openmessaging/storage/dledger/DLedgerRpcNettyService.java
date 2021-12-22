@@ -250,11 +250,12 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     @Override
-    public CompletableFuture<PushEntryResponse> push(PushEntryRequest request) throws Exception {
+    public CompletableFuture<PushEntryResponse> push(PushEntryRequest request) {
         CompletableFuture<PushEntryResponse> future = new CompletableFuture<>();
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.PUSH.getCode(), null);
             wrapperRequest.setBody(JSON.toJSONBytes(request));
+            //
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
                 RemotingCommand responseCommand = responseFuture.getResponseCommand();
                 if (responseCommand != null) {
