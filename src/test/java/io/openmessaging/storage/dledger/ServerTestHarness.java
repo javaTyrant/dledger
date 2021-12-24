@@ -18,18 +18,23 @@ package io.openmessaging.storage.dledger;
 
 import io.openmessaging.storage.dledger.client.DLedgerClient;
 import io.openmessaging.storage.dledger.util.FileTestUtil;
+
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ServerTestHarness extends ServerTestBase {
 
+    //启动服务器
     protected synchronized DLedgerServer launchServer(String group, String peers, String selfId) {
+        //构造配置
         DLedgerConfig config = new DLedgerConfig();
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
         config.group(group).selfId(selfId).peers(peers);
         config.setStoreType(DLedgerConfig.MEMORY);
+        //
         DLedgerServer dLedgerServer = new DLedgerServer(config);
+        //startup干了那几件事呢?
         dLedgerServer.startup();
         bases.add(config.getDefaultPath());
         return dLedgerServer;
@@ -48,7 +53,7 @@ public class ServerTestHarness extends ServerTestBase {
     }
 
     protected synchronized DLedgerServer launchServer(String group, String peers, String selfId, String leaderId,
-        String storeType) {
+                                                      String storeType) {
         DLedgerConfig config = new DLedgerConfig();
         config.group(group).selfId(selfId).peers(peers);
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
@@ -73,7 +78,7 @@ public class ServerTestHarness extends ServerTestBase {
     }
 
     protected synchronized DLedgerServer launchServerEnableBatchPush(String group, String peers, String selfId, String leaderId,
-        String storeType) {
+                                                                     String storeType) {
         DLedgerConfig config = new DLedgerConfig();
         config.group(group).selfId(selfId).peers(peers);
         config.setStoreBaseDir(FileTestUtil.TEST_BASE + File.separator + group);
@@ -106,7 +111,7 @@ public class ServerTestHarness extends ServerTestBase {
     }
 
     protected DLedgerServer parseServers(List<DLedgerServer> servers, AtomicInteger leaderNum,
-        AtomicInteger followerNum) {
+                                         AtomicInteger followerNum) {
         DLedgerServer leaderServer = null;
         for (DLedgerServer server : servers) {
             if (server.getMemberState().isLeader()) {

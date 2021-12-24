@@ -86,15 +86,15 @@ public class DLedgerServer implements DLedgerProtocolHander {
 
 
     public void startup() {
-        //
+        //多副本存储
         this.dLedgerStore.startup();
-        //
+        //rpc服务,服务器和客户端.
         this.dLedgerRpcService.startup();
-        //
+        //pusher
         this.dLedgerEntryPusher.startup();
-        //
+        //选举.
         this.dLedgerLeaderElector.startup();
-        //
+        //定时任务.
         executorService.scheduleAtFixedRate(this::checkPreferredLeader, 1000, 1000, TimeUnit.MILLISECONDS);
     }
 

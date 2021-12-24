@@ -24,6 +24,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -66,6 +67,7 @@ public class LeaderElectorTest extends ServerTestHarness {
     public void testThreeServer() throws Exception {
         String group = UUID.randomUUID().toString();
         String peers = String.format("n0-localhost:%d;n1-localhost:%d;n2-localhost:%d", nextPort(), nextPort(), nextPort());
+        //启动三个服务器.
         List<DLedgerServer> servers = new ArrayList<>();
         servers.add(launchServer(group, peers, "n0"));
         servers.add(launchServer(group, peers, "n1"));
@@ -73,21 +75,19 @@ public class LeaderElectorTest extends ServerTestHarness {
         Thread.sleep(2000);
         AtomicInteger leaderNum = new AtomicInteger(0);
         AtomicInteger followerNum = new AtomicInteger(0);
+        //一个主节点,两个从节点.
         DLedgerServer leaderServer = parseServers(servers, leaderNum, followerNum);
         Assert.assertEquals(1, leaderNum.get());
         Assert.assertEquals(2, followerNum.get());
+        //
         Assert.assertNotNull(leaderServer);
-
+        //
         for (int i = 0; i < 10; i++) {
-            long maxTerm = servers.stream().max((o1, o2) -> {
-                if (o1.getMemberState().currTerm() < o2.getMemberState().currTerm()) {
-                    return -1;
-                } else if (o1.getMemberState().currTerm() > o2.getMemberState().currTerm()) {
-                    return 1;
-                } else {
-                    return 0;
-                }
-            }).get().getMemberState().currTerm();
+            long maxTerm = servers.stream()
+                    .max(Comparator.comparingLong(o -> o.getMemberState().currTerm()))
+                    .get()
+                    .getMemberState()
+                    .currTerm();
             DLedgerServer candidate = servers.get(i % servers.size());
             candidate.getdLedgerLeaderElector().testRevote(maxTerm + 1);
             Thread.sleep(2000);
@@ -97,7 +97,7 @@ public class LeaderElectorTest extends ServerTestHarness {
             Assert.assertEquals(1, leaderNum.get());
             Assert.assertEquals(2, followerNum.get());
             Assert.assertNotNull(leaderServer);
-            Assert.assertTrue(candidate == leaderServer);
+            Assert.assertSame(candidate, leaderServer);
         }
         //write some data
         for (int i = 0; i < 5; i++) {

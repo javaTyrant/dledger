@@ -91,7 +91,9 @@ public class DLedgerEntryPusher {
     }
 
     public void startup() {
+        //处理选票
         entryHandler.start();
+        //ack
         quorumAckChecker.start();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.start();

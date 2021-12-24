@@ -62,9 +62,9 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     private static Logger logger = LoggerFactory.getLogger(DLedgerRpcNettyService.class);
     //服务器
-    private NettyRemotingServer remotingServer;
+    private final NettyRemotingServer remotingServer;
     //客户端
-    private NettyRemotingClient remotingClient;
+    private final NettyRemotingClient remotingClient;
 
     private MemberState memberState;
 
@@ -454,6 +454,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     @Override
     public void startup() {
+        //开启服务器和客户端.
         this.remotingServer.start();
         this.remotingClient.start();
     }
