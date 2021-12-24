@@ -22,12 +22,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 
+//可关闭的线程.
 public abstract class ShutdownAbleThread extends Thread {
+    //
     protected final ResettableCountDownLatch waitPoint = new ResettableCountDownLatch(1);
+    //
     protected Logger logger;
+    //
     protected volatile AtomicBoolean hasNotified = new AtomicBoolean(false);
-    private AtomicBoolean running = new AtomicBoolean(true);
-    private CountDownLatch latch = new CountDownLatch(1);
+    //
+    private final AtomicBoolean running = new AtomicBoolean(true);
+    //
+    private final CountDownLatch latch = new CountDownLatch(1);
 
     public ShutdownAbleThread(String name, Logger logger) {
         super(name);

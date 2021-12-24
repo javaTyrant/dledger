@@ -207,7 +207,7 @@ public class DLedgerServer implements DLedgerProtocolHander {
                     dLedgerEntry.setBody(request.getBody());
                     //广播的方法在哪里呢?现在只是追加,ack成功之后再往从节点复制.
                     DLedgerEntry resEntry = dLedgerStore.appendAsLeader(dLedgerEntry);
-                    //等待ack.
+                    //等待ack.ack的逻辑是什么?
                     return dLedgerEntryPusher.waitAck(resEntry, false);
                 }
             }

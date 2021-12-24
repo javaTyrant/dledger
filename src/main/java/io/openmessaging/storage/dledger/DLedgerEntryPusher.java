@@ -81,6 +81,7 @@ public class DLedgerEntryPusher {
         this.dLedgerStore = dLedgerStore;
         this.dLedgerRpcService = dLedgerRpcService;
         for (String peer : memberState.getPeerMap().keySet()) {
+            //把其他的节点添加到需要分发的map里.
             if (!peer.equals(memberState.getSelfId())) {
                 dispatcherMap.put(peer, new EntryDispatcher(peer, logger));
             }
@@ -318,6 +319,7 @@ public class DLedgerEntryPusher {
 
     /**
      * 日志转发线程，当前节点为主节点时追加。
+     * <p/>
      * This thread will be activated by the leader.
      * This thread will push the entry to follower(identified by peerId) and update the completed pushed index to index map.
      * <p>
@@ -337,19 +339,31 @@ public class DLedgerEntryPusher {
      * |---<-----<------<-------<----|
      */
     private class EntryDispatcher extends ShutdownAbleThread {
-
+        //
         private final AtomicReference<PushEntryRequest.Type> type = new AtomicReference<>(PushEntryRequest.Type.COMPARE);
+        //
         private long lastPushCommitTimeMs = -1;
+        //
         private final String peerId;
+        //
         private long compareIndex = -1;
+        //
         private long writeIndex = -1;
+        //
         private final int maxPendingSize = 1000;
+        //
         private long term = -1;
+        //
         private String leaderId = null;
+        //
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
+        //
         private final ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
+        //
         private final ConcurrentMap<Long, Pair<Long, Integer>> batchPendingMap = new ConcurrentHashMap<>();
+        //
         private final PushEntryRequest batchAppendEntryRequest = new PushEntryRequest();
+        //
         private final Quota quota = new Quota(dLedgerConfig.getPeerPushQuota());
 
         public EntryDispatcher(String peerId, Logger logger) {
@@ -790,7 +804,6 @@ public class DLedgerEntryPusher {
                     waitForRunning(1);
                     return;
                 }
-
                 //如果推送类型为APPEND，主节点向从节点传播消息请求。
                 if (type.get() == PushEntryRequest.Type.APPEND) {
                     if (dLedgerConfig.isEnableBatchPush()) {
@@ -827,6 +840,7 @@ public class DLedgerEntryPusher {
             super("EntryHandler-" + memberState.getSelfId(), logger);
         }
 
+        //
         public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
             //The timeout should smaller than the remoting layer's request timeout
             CompletableFuture<PushEntryResponse> future = new TimeoutFuture<>(1000);
@@ -895,7 +909,9 @@ public class DLedgerEntryPusher {
                 PreConditions.check(writeIndex == request.getEntry().getIndex(), DLedgerResponseCode.INCONSISTENT_STATE);
                 //
                 DLedgerEntry entry = dLedgerStore.appendAsFollower(request.getEntry(), request.getTerm(), request.getLeaderId());
+                //
                 PreConditions.check(entry.getIndex() == writeIndex, DLedgerResponseCode.INCONSISTENT_STATE);
+                //
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
                 //更新index.
                 dLedgerStore.updateCommittedIndex(request.getTerm(), request.getCommitIndex());

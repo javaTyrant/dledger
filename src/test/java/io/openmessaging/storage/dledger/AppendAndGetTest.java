@@ -32,7 +32,7 @@ import org.junit.Test;
 public class AppendAndGetTest extends ServerTestHarness {
 
     @Test
-    public void testSingleServerInMemory() throws Exception {
+    public void testSingleServerInMemory() {
         String group = UUID.randomUUID().toString();
         String selfId = "n0";
         String peers = "n0-localhost:10001";
@@ -51,7 +51,7 @@ public class AppendAndGetTest extends ServerTestHarness {
     }
 
     @Test
-    public void testSingleServerInFile() throws Exception {
+    public void testSingleServerInFile() {
         String group = UUID.randomUUID().toString();
         String selfId = "n0";
         String peers = "n0-localhost:10002";

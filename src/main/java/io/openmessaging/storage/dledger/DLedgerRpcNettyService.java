@@ -88,8 +88,10 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         }
     });
 
+    //心跳执行器.
     private ExecutorService heartBeatInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
+        //线程索引.
+        private final AtomicInteger threadIndex = new AtomicInteger(0);
 
         @Override
         public Thread newThread(Runnable r) {
@@ -123,10 +125,8 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         this.remotingServer.registerProcessor(DLedgerRequestCode.VOTE.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.HEART_BEAT.getCode(), protocolProcessor, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.LEADERSHIP_TRANSFER.getCode(), protocolProcessor, null);
-
         //start the remoting client
         this.remotingClient = new NettyRemotingClient(new NettyClientConfig(), null);
-
     }
 
     private String getPeerAddr(RequestOrResponse request) {
@@ -137,6 +137,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     @Override
     public CompletableFuture<HeartBeatResponse> heartBeat(HeartBeatRequest request) {
         CompletableFuture<HeartBeatResponse> future = new CompletableFuture<>();
+        //
         heartBeatInvokeExecutor.execute(() -> {
             try {
                 //
@@ -170,14 +171,16 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     @Override
     public CompletableFuture<VoteResponse> vote(VoteRequest request) {
+        //
         CompletableFuture<VoteResponse> future = new CompletableFuture<>();
+        //拉票线程执行器.
         voteInvokeExecutor.execute(() -> {
             try {
                 //
                 RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.VOTE.getCode(), null);
                 //
                 wrapperRequest.setBody(JSON.toJSONBytes(request));
-                //
+                //处理选票在handleVote里,通过processRequest.
                 remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
                     //
                     RemotingCommand responseCommand = responseFuture.getResponseCommand();
@@ -334,11 +337,6 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
      * <p>
      * CompletableFuture is an excellent choice, whenCompleteAsync will handle the response asynchronously. With an
      * independent thread-pool, it will improve performance and reduce blocking points.
-     *
-     * @param ctx
-     * @param request
-     * @return
-     * @throws Exception
      */
     public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws Exception {
         DLedgerRequestCode requestCode = DLedgerRequestCode.valueOf(request.getCode());
@@ -346,57 +344,45 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             case METADATA: {
                 MetadataRequest metadataRequest = JSON.parseObject(request.getBody(), MetadataRequest.class);
                 CompletableFuture<MetadataResponse> future = handleMetadata(metadataRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case APPEND: {
                 AppendEntryRequest appendEntryRequest = JSON.parseObject(request.getBody(), AppendEntryRequest.class);
+                //处理追加日志请求.
                 CompletableFuture<AppendEntryResponse> future = handleAppend(appendEntryRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                //全部ACK了.
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case GET: {
                 GetEntriesRequest getEntriesRequest = JSON.parseObject(request.getBody(), GetEntriesRequest.class);
                 CompletableFuture<GetEntriesResponse> future = handleGet(getEntriesRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case PULL: {
                 PullEntriesRequest pullEntriesRequest = JSON.parseObject(request.getBody(), PullEntriesRequest.class);
                 CompletableFuture<PullEntriesResponse> future = handlePull(pullEntriesRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case PUSH: {
                 PushEntryRequest pushEntryRequest = JSON.parseObject(request.getBody(), PushEntryRequest.class);
                 CompletableFuture<PushEntryResponse> future = handlePush(pushEntryRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case VOTE: {
                 VoteRequest voteRequest = JSON.parseObject(request.getBody(), VoteRequest.class);
                 CompletableFuture<VoteResponse> future = handleVote(voteRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case HEART_BEAT: {
                 HeartBeatRequest heartBeatRequest = JSON.parseObject(request.getBody(), HeartBeatRequest.class);
                 CompletableFuture<HeartBeatResponse> future = handleHeartBeat(heartBeatRequest);
-                future.whenCompleteAsync((x, y) -> {
-                    writeResponse(x, y, request, ctx);
-                }, futureExecutor);
+                future.whenCompleteAsync((x, y) -> writeResponse(x, y, request, ctx), futureExecutor);
                 break;
             }
             case LEADERSHIP_TRANSFER: {

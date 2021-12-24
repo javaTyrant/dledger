@@ -364,6 +364,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         PreConditions.check(!isDiskFull, DLedgerResponseCode.DISK_FULL);
         //
         ByteBuffer dataBuffer = localEntryBuffer.get();
+        //
         ByteBuffer indexBuffer = localIndexBuffer.get();
         //
         DLedgerEntryCoder.encode(entry, dataBuffer);

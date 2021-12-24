@@ -32,6 +32,7 @@ import java.net.SocketException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -42,8 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class IOUtils {
-    public static final Charset DEFAULT_CHARSET = Charset.forName("utf-8");
-    private static Logger logger = LoggerFactory.getLogger(IOUtils.class);
+    public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
+    private static final Logger logger = LoggerFactory.getLogger(IOUtils.class);
 
     public static void string2File(final String str, final String fileName) throws IOException {
 

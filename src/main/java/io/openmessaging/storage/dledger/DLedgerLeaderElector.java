@@ -103,8 +103,9 @@ public class DLedgerLeaderElector {
 
     //通过 DLedgerLeaderElector 的 startup 方法启动状态管理机
     public void startup() {
-        stateMaintainer.start();
         //
+        stateMaintainer.start();
+        //不会走到这个逻辑.
         for (RoleChangeHandler roleChangeHandler : roleChangeHandlers) {
             roleChangeHandler.startup();
         }
@@ -364,7 +365,6 @@ public class DLedgerLeaderElector {
     }
 
     //成为Leader后
-    //
     private void maintainAsLeader() throws Exception {
         //首先判断上一次发送心跳的时间与当前时间的差值是否大于心跳包发送间隔，如果超过，则说明需要发送心跳包。
         if (DLedgerUtils.elapsed(lastSendHeartBeatTime) > heartBeatTimeIntervalMs) {
@@ -389,10 +389,15 @@ public class DLedgerLeaderElector {
     //当 Candidate 状态的节点在收到主节点发送的心跳包后，会将状态变更为follower，那我们先来看一下在follower状态下，节点会做些什么事情？
     //如果maxHeartBeatLeak (默认为3)个心跳包周期内未收到心跳，则将状态变更为Candidate。
     private void maintainAsFollower() {
+        //上次心跳时间大于2 * heartBeatTimeIntervalMs,说明很久没有收到心跳了.
         if (DLedgerUtils.elapsed(lastLeaderHeartBeatTime) > 2L * heartBeatTimeIntervalMs) {
             synchronized (memberState) {
-                if (memberState.isFollower() && (DLedgerUtils.elapsed(lastLeaderHeartBeatTime) > (long) maxHeartBeatLeak * heartBeatTimeIntervalMs)) {
-                    logger.info("[{}][HeartBeatTimeOut] lastLeaderHeartBeatTime: {} heartBeatTimeIntervalMs: {} lastLeader={}", memberState.getSelfId(), new Timestamp(lastLeaderHeartBeatTime), heartBeatTimeIntervalMs, memberState.getLeaderId());
+                //是Follower且时间满足
+                if (memberState.isFollower()
+                        && (DLedgerUtils.elapsed(lastLeaderHeartBeatTime) > (long) maxHeartBeatLeak * heartBeatTimeIntervalMs)) {
+                    logger.info("[{}][HeartBeatTimeOut] lastLeaderHeartBeatTime: {} heartBeatTimeIntervalMs: {} lastLeader={}",
+                            memberState.getSelfId(), new Timestamp(lastLeaderHeartBeatTime), heartBeatTimeIntervalMs, memberState.getLeaderId());
+                    //改变状态.
                     changeRoleToCandidate(memberState.currTerm());
                 }
             }
@@ -409,6 +414,7 @@ public class DLedgerLeaderElector {
                                                                          long ledgerEndIndex)
             throws Exception {
         List<CompletableFuture<VoteResponse>> responses = new ArrayList<>();
+        //
         for (String id : memberState.getPeerMap().keySet()) {
             //选票.
             VoteRequest voteRequest = new VoteRequest();
@@ -421,14 +427,14 @@ public class DLedgerLeaderElector {
             voteRequest.setRemoteId(id);
             //返回结果.
             CompletableFuture<VoteResponse> voteResponse;
+            //如果是leader,处理选票
             if (memberState.getSelfId().equals(id)) {
                 voteResponse = handleVote(voteRequest, true);
             } else {
-                //async
+                //否则,去拉票.
                 voteResponse = dLedgerRpcService.vote(voteRequest);
             }
             responses.add(voteResponse);
-
         }
         return responses;
     }
@@ -451,11 +457,11 @@ public class DLedgerLeaderElector {
         if (System.currentTimeMillis() < nextTimeToRequestVote && !needIncreaseTermImmediately) {
             return;
         }
-        //
+        //任期
         long term;
-        //
+        //Leader节点当前的投票轮次。
         long ledgerEndTerm;
-        //
+        //当前日志的最大序列，即下一条日志的开始 index，在日志复制部分会详细介绍。
         long ledgerEndIndex;
         //加锁.
         synchronized (memberState) {
@@ -476,12 +482,12 @@ public class DLedgerLeaderElector {
                 //任期不变.
                 term = memberState.currTerm();
             }
-            //
+            //从memberState获取.memberState的赋值逻辑.
             ledgerEndIndex = memberState.getLedgerEndIndex();
             //
             ledgerEndTerm = memberState.getLedgerEndTerm();
         }
-        //
+        //需要增加任期吗?
         if (needIncreaseTermImmediately) {
             //
             nextTimeToRequestVote = getNextTimeToRequestVote();
@@ -490,7 +496,7 @@ public class DLedgerLeaderElector {
         }
         //
         long startVoteTimeMs = System.currentTimeMillis();
-        //
+        //和其他的节点通信.
         final List<CompletableFuture<VoteResponse>> quorumVoteResponses =
                 voteForQuorumResponses(term, ledgerEndTerm, ledgerEndIndex);
         //已知的最大投票轮次。
@@ -623,8 +629,10 @@ public class DLedgerLeaderElector {
     }
 
     /**
-     * The core method of maintainer. Run the specified logic according to the current role: candidate => propose a
-     * vote. leader => send heartbeats to followers, and step down to candidate when quorum followers do not respond.
+     * The core method of maintainer.
+     * Run the specified logic according to the current role:
+     * candidate => propose a vote.
+     * leader => send heartbeats to followers, and step down to candidate when quorum followers do not respond.
      * follower => accept heartbeats, and change to candidate when no heartbeat from leader.
      */
     private void maintainState() throws Exception {
@@ -730,7 +738,9 @@ public class DLedgerLeaderElector {
     }
 
     private class TakeLeadershipTask {
+        //
         private LeadershipTransferRequest request;
+        //
         private CompletableFuture<LeadershipTransferResponse> responseFuture;
 
         public synchronized void update(LeadershipTransferRequest request,
@@ -744,6 +754,7 @@ public class DLedgerLeaderElector {
             if (memberState.getTermToTakeLeadership() == -1 || responseFuture == null) {
                 return;
             }
+            //
             LeadershipTransferResponse response;
             if (term > memberState.getTermToTakeLeadership()) {
                 response = new LeadershipTransferResponse().term(term).code(DLedgerResponseCode.EXPIRED_TERM.getCode());
@@ -779,6 +790,7 @@ public class DLedgerLeaderElector {
     }
 
     public interface RoleChangeHandler {
+        //
         void handle(long term, MemberState.Role role);
 
         void startup();
@@ -786,6 +798,7 @@ public class DLedgerLeaderElector {
         void shutdown();
     }
 
+    //
     public class StateMaintainer extends ShutdownAbleThread {
 
         public StateMaintainer(String name, Logger logger) {

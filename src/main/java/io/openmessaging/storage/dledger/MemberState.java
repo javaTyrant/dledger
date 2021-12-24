@@ -68,9 +68,9 @@ public class MemberState {
     //
     private long knownMaxTermInGroup = -1;
     //
-    private Map<String, String> peerMap = new HashMap<>();
+    private final Map<String, String> peerMap = new HashMap<>();
     //
-    private Map<String, Boolean> peersLiveTable = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> peersLiveTable = new ConcurrentHashMap<>();
     //
     private volatile String transferee;
     //

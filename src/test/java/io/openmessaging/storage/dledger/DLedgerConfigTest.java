@@ -27,6 +27,7 @@ public class DLedgerConfigTest {
         DLedgerConfig dLedgerConfig = new DLedgerConfig();
         JCommander.Builder builder = JCommander.newBuilder().addObject(dLedgerConfig);
         JCommander jc = builder.build();
+        //修改了SelfId.
         jc.parse("-i", "n1", "-g", "test", "-p", "n1-localhost:21911", "-s", "/tmp");
         Assert.assertEquals("n1", dLedgerConfig.getSelfId());
         Assert.assertEquals("test", dLedgerConfig.getGroup());
