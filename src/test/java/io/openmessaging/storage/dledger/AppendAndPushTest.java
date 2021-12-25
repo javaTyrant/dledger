@@ -120,9 +120,7 @@ public class AppendAndPushTest extends ServerTestHarness {
         appendEntryRequest.setBody(new byte[128]);
         CompletableFuture<AppendEntryResponse> future = dLedgerServer0.handleAppend(appendEntryRequest);
         Assert.assertTrue(future instanceof AppendFuture);
-        future.whenComplete((x, ex) -> {
-            sendSuccess.set(true);
-        });
+        future.whenComplete((x, ex) -> sendSuccess.set(true));
         Thread.sleep(500);
         Assert.assertTrue(!sendSuccess.get());
         //start server1

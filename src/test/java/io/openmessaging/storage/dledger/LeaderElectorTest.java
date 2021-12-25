@@ -69,6 +69,7 @@ public class LeaderElectorTest extends ServerTestHarness {
         String peers = String.format("n0-localhost:%d;n1-localhost:%d;n2-localhost:%d", nextPort(), nextPort(), nextPort());
         //启动三个服务器.
         List<DLedgerServer> servers = new ArrayList<>();
+        //
         servers.add(launchServer(group, peers, "n0"));
         servers.add(launchServer(group, peers, "n1"));
         servers.add(launchServer(group, peers, "n2"));

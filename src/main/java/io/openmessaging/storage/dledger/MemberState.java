@@ -80,25 +80,32 @@ public class MemberState {
         this.group = config.getGroup();
         this.selfId = config.getSelfId();
         this.peers = config.getPeers();
+        //放入peerMap.
         for (String peerInfo : this.peers.split(";")) {
             String peerSelfId = peerInfo.split("-")[0];
             String peerAddress = peerInfo.substring(peerSelfId.length() + 1);
             peerMap.put(peerSelfId, peerAddress);
         }
+        //
         this.dLedgerConfig = config;
         loadTerm();
     }
 
     private void loadTerm() {
         try {
+            //
             String data = IOUtils.file2String(dLedgerConfig.getDefaultPath() + File.separator + TERM_PERSIST_FILE);
+            //
             Properties properties = IOUtils.string2Properties(data);
+            //
             if (properties == null) {
                 return;
             }
+            //
             if (properties.containsKey(TERM_PERSIST_KEY_TERM)) {
                 currTerm = Long.parseLong(String.valueOf(properties.get(TERM_PERSIST_KEY_TERM)));
             }
+            //
             if (properties.containsKey(TERM_PERSIST_KEY_VOTE_FOR)) {
                 currVoteFor = String.valueOf(properties.get(TERM_PERSIST_KEY_VOTE_FOR));
                 if (currVoteFor.length() == 0) {
@@ -206,6 +213,7 @@ public class MemberState {
         return peerMap.get(selfId);
     }
 
+    @SuppressWarnings("unused")
     public String getLeaderAddr() {
         return peerMap.get(leaderId);
     }
@@ -256,6 +264,7 @@ public class MemberState {
         return role;
     }
 
+    @SuppressWarnings("unused")
     public ReentrantLock getDefaultLock() {
         return defaultLock;
     }
@@ -277,6 +286,6 @@ public class MemberState {
         UNKNOWN,
         CANDIDATE,
         LEADER,
-        FOLLOWER;
+        FOLLOWER
     }
 }

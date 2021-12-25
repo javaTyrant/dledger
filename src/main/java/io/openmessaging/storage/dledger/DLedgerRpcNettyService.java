@@ -59,8 +59,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 
 public class DLedgerRpcNettyService extends DLedgerRpcService {
-
-    private static Logger logger = LoggerFactory.getLogger(DLedgerRpcNettyService.class);
+    //
+    private static final Logger logger = LoggerFactory.getLogger(DLedgerRpcNettyService.class);
     //服务器
     private final NettyRemotingServer remotingServer;
     //客户端
@@ -70,17 +70,18 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     private DLedgerServer dLedgerServer;
 
-    private ExecutorService futureExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
+    private final ExecutorService futureExecutor = Executors
+            .newFixedThreadPool(4, new ThreadFactory() {
+                private final AtomicInteger threadIndex = new AtomicInteger(0);
 
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "FutureExecutor_" + this.threadIndex.incrementAndGet());
-        }
-    });
+                @Override
+                public Thread newThread(Runnable r) {
+                    return new Thread(r, "FutureExecutor_" + this.threadIndex.incrementAndGet());
+                }
+            });
 
-    private ExecutorService voteInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
+    private final ExecutorService voteInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
+        private final AtomicInteger threadIndex = new AtomicInteger(0);
 
         @Override
         public Thread newThread(Runnable r) {
@@ -89,7 +90,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     });
 
     //心跳执行器.
-    private ExecutorService heartBeatInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
+    private final ExecutorService heartBeatInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
         //线程索引.
         private final AtomicInteger threadIndex = new AtomicInteger(0);
 
@@ -115,6 +116,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         };
         //start the remoting server
         NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        //
         nettyServerConfig.setListenPort(Integer.parseInt(memberState.getSelfAddr().split(":")[1]));
         this.remotingServer = new NettyRemotingServer(nettyServerConfig, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.METADATA.getCode(), protocolProcessor, null);
@@ -237,7 +239,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     @Override
-    public CompletableFuture<MetadataResponse> metadata(MetadataRequest request) throws Exception {
+    public CompletableFuture<MetadataResponse> metadata(MetadataRequest request) {
         MetadataResponse metadataResponse = new MetadataResponse();
         metadataResponse.setCode(DLedgerResponseCode.UNSUPPORTED.getCode());
         return CompletableFuture.completedFuture(metadataResponse);
@@ -284,7 +286,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     @Override
     public CompletableFuture<LeadershipTransferResponse> leadershipTransfer(
-            LeadershipTransferRequest request) throws Exception {
+            LeadershipTransferRequest request) {
         CompletableFuture<LeadershipTransferResponse> future = new CompletableFuture<>();
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.LEADERSHIP_TRANSFER.getCode(), null);
@@ -410,7 +412,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     @Override
-    public CompletableFuture<HeartBeatResponse> handleHeartBeat(HeartBeatRequest request) throws Exception {
+    public CompletableFuture<HeartBeatResponse> handleHeartBeat(HeartBeatRequest request) {
         return dLedgerServer.handleHeartBeat(request);
     }
 
@@ -421,22 +423,22 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
     }
 
     @Override
-    public CompletableFuture<AppendEntryResponse> handleAppend(AppendEntryRequest request) throws Exception {
+    public CompletableFuture<AppendEntryResponse> handleAppend(AppendEntryRequest request) {
         return dLedgerServer.handleAppend(request);
     }
 
     @Override
-    public CompletableFuture<GetEntriesResponse> handleGet(GetEntriesRequest request) throws Exception {
+    public CompletableFuture<GetEntriesResponse> handleGet(GetEntriesRequest request) {
         return dLedgerServer.handleGet(request);
     }
 
     @Override
-    public CompletableFuture<MetadataResponse> handleMetadata(MetadataRequest request) throws Exception {
+    public CompletableFuture<MetadataResponse> handleMetadata(MetadataRequest request) {
         return dLedgerServer.handleMetadata(request);
     }
 
     @Override
-    public CompletableFuture<PullEntriesResponse> handlePull(PullEntriesRequest request) throws Exception {
+    public CompletableFuture<PullEntriesResponse> handlePull(PullEntriesRequest request) {
         return dLedgerServer.handlePull(request);
     }
 
@@ -473,6 +475,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         this.memberState = memberState;
     }
 
+    @SuppressWarnings("unused")
     public DLedgerServer getdLedgerServer() {
         return dLedgerServer;
     }

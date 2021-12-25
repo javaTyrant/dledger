@@ -69,13 +69,20 @@ public class DLedgerServer implements DLedgerProtocolHander {
     //
     private final ScheduledExecutorService executorService;
 
+    //
     public DLedgerServer(DLedgerConfig dLedgerConfig) {
         this.dLedgerConfig = dLedgerConfig;
+        //构造memberState
         this.memberState = new MemberState(dLedgerConfig);
+        //store
         this.dLedgerStore = createDLedgerStore(dLedgerConfig.getStoreType(), this.dLedgerConfig, this.memberState);
+        //rpc
         dLedgerRpcService = new DLedgerRpcNettyService(this);
+        //
         dLedgerEntryPusher = new DLedgerEntryPusher(dLedgerConfig, memberState, dLedgerStore, dLedgerRpcService);
+        //
         dLedgerLeaderElector = new DLedgerLeaderElector(dLedgerConfig, memberState, dLedgerRpcService);
+        //
         executorService = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r);
             t.setDaemon(true);
