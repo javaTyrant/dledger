@@ -40,6 +40,9 @@ public class MmapFileList {
 
     private final int mappedFileSize;
 
+    /**
+     * 这个是什么?
+     */
     private final CopyOnWriteArrayList<MmapFile> mappedFiles = new CopyOnWriteArrayList<>();
 
     private long flushedWhere = 0;
@@ -284,10 +287,12 @@ public class MmapFileList {
 
     public boolean load() {
         File dir = new File(this.storePath);
+        logger.info("storePath{}", this.storePath);
         File[] files = dir.listFiles();
         if (files != null) {
             // ascending order
             Arrays.sort(files);
+            //files
             for (File file : files) {
                 //留恋那个长度不匹配.
                 if (file.length() != this.mappedFileSize) {

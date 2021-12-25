@@ -410,6 +410,7 @@ public class DLedgerEntryPusher {
             request.setTerm(term);
             request.setEntry(entry);
             request.setType(target);
+            //
             request.setCommitIndex(dLedgerStore.getCommittedIndex());
             return request;
         }
@@ -658,18 +659,25 @@ public class DLedgerEntryPusher {
         }
 
         private void doTruncate(long truncateIndex) throws Exception {
+            //
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
+            //
             DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
+            //
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
+            //构造doTruncate请求.
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
+            //发送请求.
             PushEntryResponse truncateResponse = dLedgerRpcService.push(truncateRequest).get(3, TimeUnit.SECONDS);
             PreConditions.check(truncateResponse != null, DLedgerResponseCode.UNKNOWN, "truncateIndex=%d", truncateIndex);
             PreConditions.check(truncateResponse.getCode() == DLedgerResponseCode.SUCCESS.getCode(), DLedgerResponseCode.valueOf(truncateResponse.getCode()), "truncateIndex=%d", truncateIndex);
             lastPushCommitTimeMs = System.currentTimeMillis();
+            //状态机改变.
             changeState(truncateIndex, PushEntryRequest.Type.APPEND);
         }
 
+        //被调用的逻辑.
         private synchronized void changeState(long index, PushEntryRequest.Type target) {
             logger.info("[Push-{}]Change state from {} to {} at {}", peerId, type.get(), target, index);
             switch (target) {
@@ -725,13 +733,17 @@ public class DLedgerEntryPusher {
                     logger.info("[Push-{}][DoCompare] compareIndex={} out of range {}-{}", peerId, compareIndex, dLedgerStore.getLedgerBeginIndex(), dLedgerStore.getLedgerEndIndex());
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
-
+                //
                 DLedgerEntry entry = dLedgerStore.get(compareIndex);
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
+                //发送compare请求.
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
+                //3秒超时.
                 PushEntryResponse response = responseFuture.get(3, TimeUnit.SECONDS);
+                //不为空,且校验了code,所以下面的判断是okay的.
                 PreConditions.check(response != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
+                //
                 PreConditions.check(response.getCode() == DLedgerResponseCode.INCONSISTENT_STATE.getCode() || response.getCode() == DLedgerResponseCode.SUCCESS.getCode()
                         , DLedgerResponseCode.valueOf(response.getCode()), "compareIndex=%d", compareIndex);
                 long truncateIndex = -1;
@@ -744,9 +756,11 @@ public class DLedgerEntryPusher {
                      */
                     //1.如果两者的日志序号相同，则无需截断，下次将直接先从节点发送 append 请求；否则将 truncateIndex  设置为响应结果中的 endIndex。
                     if (compareIndex == response.getEndIndex()) {
+                        //日志转发器状态变成Append.
                         changeState(compareIndex, PushEntryRequest.Type.APPEND);
                         break;
                     } else {
+                        //
                         truncateIndex = compareIndex;
                     }
                     //2.如果从节点存储的最大日志序号小于主节点的最小序号，或者从节点的最小日志序号大于主节点的最大日志序号，即两者不相交，
@@ -965,6 +979,7 @@ public class DLedgerEntryPusher {
                 long index = dLedgerStore.truncate(request.getEntry(), request.getTerm(), request.getLeaderId());
                 PreConditions.check(index == truncateIndex, DLedgerResponseCode.INCONSISTENT_STATE);
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
+                //还是DLedgerStore来实现.
                 dLedgerStore.updateCommittedIndex(request.getTerm(), request.getCommitIndex());
             } catch (Throwable t) {
                 logger.error("[HandleDoTruncate] truncateIndex={}", truncateIndex, t);

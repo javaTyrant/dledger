@@ -612,6 +612,7 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         return committedIndex;
     }
 
+    //更新已提交的索引.
     public void updateCommittedIndex(long term, long newCommittedIndex) {
         if (newCommittedIndex == -1
                 || ledgerEndIndex == -1

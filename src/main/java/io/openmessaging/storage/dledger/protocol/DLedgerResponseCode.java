@@ -56,7 +56,7 @@ public enum DLedgerResponseCode {
     LEADER_NOT_READY(505, ""),
     LEADER_TRANSFERRING(506, "");
 
-    private static Map<Integer, DLedgerResponseCode> codeMap = new HashMap<>();
+    private static final Map<Integer, DLedgerResponseCode> codeMap = new HashMap<>();
 
     static {
         for (DLedgerResponseCode responseCode : DLedgerResponseCode.values()) {
@@ -64,8 +64,8 @@ public enum DLedgerResponseCode {
         }
     }
 
-    private int code;
-    private String desc;
+    private final int code;
+    private final String desc;
 
     DLedgerResponseCode(int code, String desc) {
         this.code = code;
@@ -86,6 +86,7 @@ public enum DLedgerResponseCode {
         return code;
     }
 
+    @SuppressWarnings("unused")
     public String getDesc() {
         return desc;
     }
